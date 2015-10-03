@@ -7,17 +7,33 @@
 ### IMPORT ALL THE THINGS
 #%matplotlib inline
 import cv2 as cv2
-# from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt
 import numpy as np
 import time as t
 import pandas as pd
+import cPickle
 # import pims
 # import trackpy as tp
 # import ipdb
 import sys
 import os
 # import av
-# from tqdm import tqdm
+from tqdm import tqdm, trange
+from scipy.ndimage.filters import gaussian_filter
+
+# http://stackoverflow.com/questions/29731726/how-to-calculate-a-gaussian-kernel-matrix-efficiently-in-numpy
+import numpy as np
+import scipy.stats as st
+
+def gkern(kernlen=21, nsig=3):
+    """Returns a 2D Gaussian kernel array."""
+
+    interval = (2*nsig+1.)/(kernlen)
+    x = np.linspace(-nsig-interval/2., nsig+interval/2., kernlen+1)
+    kern1d = np.diff(st.norm.cdf(x))
+    kernel_raw = np.sqrt(np.outer(kern1d, kern1d))
+    kernel = kernel_raw/kernel_raw.sum()
+    return kernel
 
 print "OpenCV Version : %s " % cv2.__version__
 
@@ -31,6 +47,7 @@ ros = []
 image_num = 0
 history = 10
 frames = []
+
 
 video = os.path.realpath("LeoVideo/20130919C5a10nM+LTB410nMxy41.avi")
 #video = sys.argv[1]
@@ -99,28 +116,48 @@ def heatmap(circles,image):
     # print "running heatmap"
     #max values: [179,255,255]
     hsv = cv2.cvtColor(image,cv2.COLOR_RGB2HSV)
-    r = 15
-    for point in circles:
-        tl = [point[0]-r,point[1]-r] #make sure on min or max
-        br = [point[0]+r,point[1]+r] #make sure on min or max
-        #print "point value is: %s" %(point)
-	if br[0] > 550:
-	    br[0] = 550
-	elif br[1] > 550:     
-	    br[1] = 550
-	for i in range(int(tl[0]),int(br[0])):
-            for j in range(int(tl[1]),int(br[1])):
-                value = hsv[i][j]
-                if value[0] == 0 and value[1] == 0 and value[2] == 0:
-                    hsv[i][j] = [51,235,26]
-                    #hsv = cv2.cvtColor(value,cv2.COLOR_RGB2HSV)
-                elif hsv[i][j][0] < 3:
-                    #print "can't lower value any more"
-                    pass
-                else:
-                    hsv[i][j][0] -= 3 #some number
-                print hsv[i][j]
-    rgb = cv2.cvtColor(hsv,cv2.COLOR_HSV2RGB)
+    hsv[:,:,0] = 51
+    hsv[:,:,1] = 235
+    offset = 400
+
+    res = 3
+    #jcount = np.zeros((hsv.shape[0] * res + offset*2, hsv.shape[1] * res + offset*2))
+    count = np.zeros((hsv.shape[1] * res + offset*2, hsv.shape[0] * res + offset*2))
+    s = count.shape
+
+    r = 10
+    circ_temp = np.zeros((r*2*res,r*2*res))
+    for i in range(r*2*res):
+        for j in range(r*2*res):
+            dx = (i - (r*res))
+            dy = (j - (r*res))
+            dist = np.sqrt(dx**2 + dy**2)
+            if dist < r*res:
+                circ_temp[i,j] = 1
+
+    #circ_temp = gkern(r*2*res, nsig=1)
+    #plt.imshow(circ_temp)
+    #plt.show()
+
+    for i, point in tqdm(list(enumerate(circles))):
+        tl = (max(0, point[0]-r),max(point[1]-r, 0)) #make sure on min or max
+        br = (min(s[0], point[0]+r),min(s[1], point[1]+r)) #make sure on min or max
+        tl = [int(x) for x in tl]
+        br = [int(x) for x in br]
+
+        dx = tl[0] - br[0]
+        dy = tl[1] - br[1]
+        #count[tl[0]:br[0], tl[1]:br[1]] += 1
+        try:
+            #count[tl[0]*res+offset:br[0]*res+offset, tl[1]*res+offset:br[1]*res+offset] += circ_temp
+            count[tl[0]*res+offset:br[0]*res+offset, tl[1]*res+offset:br[1]*res+offset] += 1
+        except:
+            print "error"
+
+    plt.imshow(count)
+    plt.colorbar()
+    plt.show()
+
     return rgb
 
 
@@ -137,24 +174,32 @@ def process_video(video):
     width = 1200
     blank = np.zeros((height, width, 3), np.uint8) #change for size of video
     fgbg = cv2.BackgroundSubtractorMOG()
-    while(cap.isOpened()):
-        # Capture frame-by-frame
-        print "running while loop"
-        ret, frame = cap.read()
-        if frame is None:
-            break
 
-        fgmask = fgbg.apply(frame, learningRate=1.0/history)
-        mask_rbg = cv2.cvtColor(fgmask,cv2.COLOR_GRAY2BGR)
-        # half_show('frame', frame)
-        # half_show('background subtractor',fgmask)
-        # cv2.waitKey(100)
-        cellcount,circ = calculate_cell_count(mask_rbg)
-        if circ != None:
-            for value in circ:
-                circs.append(value)
-        cellcounts.append(cellcount)
-        # import ipdb; ipdb.set_trace()
+    if False:
+        rets, frames = [], []
+        while(cap.isOpened()):
+            # Capture frame-by-frame
+            print "running while loop"
+            ret, frame = cap.read()
+            if frame is None:
+                break
+            rets.append(ret)
+            frames.append(frame)
+
+        for ret, frame in tqdm(list(zip(rets, frames))):
+            fgmask = fgbg.apply(frame, learningRate=1.0/history)
+            mask_rbg = cv2.cvtColor(fgmask,cv2.COLOR_GRAY2BGR)
+            # half_show('frame', frame)
+            # half_show('background subtractor',fgmask)
+            # cv2.waitKey(100)
+            cellcount,circ = calculate_cell_count(mask_rbg)
+            if circ != None:
+                for value in circ:
+                    circs.append(value)
+            cellcounts.append(cellcount)
+
+        cPickle.dump(circs, open("circs.pkl", "w"))
+    circs = cPickle.load(open("circs.pkl"))
 
     hm = heatmap(circs, blank)
     cv2.imshow('heatmap', hm)
