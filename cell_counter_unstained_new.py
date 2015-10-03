@@ -7,7 +7,7 @@
 ### IMPORT ALL THE THINGS
 #%matplotlib inline
 import cv2 as cv2
-from matplotlib import pyplot as plt
+# from matplotlib import pyplot as plt
 import numpy as np
 import time as t
 import pandas as pd
