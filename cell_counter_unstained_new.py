@@ -180,8 +180,8 @@ def process_video(video):
     base_name = os.path.basename(video)
     frame.to_csv(base_name+'_export.csv', indexGG=False)
 
-for v in tqdm(video):
-    process_video(video)
+# for v in tqdm(video):
+process_video(video)
 
 # blank = np.zeros((550, 1200, 3), np.uint8)
 # hm = heatmap([[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300]],blank)
