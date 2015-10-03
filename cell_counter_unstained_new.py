@@ -11,13 +11,13 @@ from matplotlib import pyplot as plt
 import numpy as np
 import time as t
 import pandas as pd
-import pims
-import trackpy as tp
-import ipdb
+# import pims
+# import trackpy as tp
+# import ipdb
 import sys
 import os
 # import av
-from tqdm import tqdm
+# from tqdm import tqdm
 
 print "OpenCV Version : %s " % cv2.__version__
 
