@@ -13,6 +13,7 @@ import numpy as np
 import time as t
 import ipdb
 import sys
+import pandas as pd
 import os
 from tqdm import tqdm
 
@@ -49,21 +50,22 @@ def pixel2micron(area):
 
 def calculate_red_area(frame):
     hsv = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
-    red_lower = np.array([120,60,30])
-    red_upper = np.array([180,100,70])
-    
+    # red_lower = np.array([120,60,30])
+    # red_upper = np.array([180,100,70])
     red_lower = np.array([100,10,10])
     red_upper = np.array([180,240,240])
 
     red_mask = cv2.inRange(hsv,red_lower,red_upper)
     red_filtered = cv2.bitwise_and(frame,frame,mask=red_mask)  
-    # half_show("red mask",red_mask)
-    # half_show("fame",frame)
+    #half_show("red mask",red_mask)
     blur_mask = cv2.medianBlur(red_mask, 3)
-    # half_show("median", blur_mask)
+    half_show("red blur", blur_mask)
     red_area = np.sum(blur_mask)
     red_area = pixel2micron(red_area)
-    # cv2.waitKey(0)
+    cv2.waitKey(0)
+
+    if red_area > 0:
+        red_area = red_area/53
     return red_area
 
 def calculate_net_area(frame):
@@ -77,13 +79,13 @@ def calculate_net_area(frame):
 
     mask = cv2.inRange(hsv,blue_lower, blue_upper)
     filtered = cv2.bitwise_and(frame,frame,mask=mask)  
-    # half_show("blue mask",blue_mask)
-    # half_show("fame",frame)
+    #half_show("blue mask",blue_mask)
+    #half_show("fame",frame)
     mask = cv2.medianBlur(mask, 3)
-    # half_show("median", mask)
+    #half_show("median", mask)
     area = np.sum(mask)
     area = pixel2micron(area)
-    # cv2.waitKey(0)
+    cv2.waitKey(0)
     return area
 
 def calculate_cell_area(frame):
@@ -98,13 +100,13 @@ def calculate_cell_area(frame):
     mask = cv2.inRange(hsv,blue_lower, blue_upper)
     filtered = cv2.bitwise_and(frame,frame,mask=mask)  
     half_show("blue mask",blue_mask)
-    half_show("frame",frame)
+    # half_show("frame",frame)
     mask = cv2.medianBlur(mask, 3)
-    half_show("median", mask)
+    # half_show("median", mask)
     area = np.sum(mask)
     area = pixel2micron(area)
     cellnum = area/5
-    cv2.waitKey(0)
+    # cv2.waitKey(0)
     return area
 
 def calculate_cell_count(frame):
@@ -112,19 +114,19 @@ def calculate_cell_count(frame):
     blur = cv2.medianBlur(frame,5)
     blue_grey = cv2.cvtColor(blur, cv2.COLOR_RGB2GRAY)
     # half_show("blue grey",blue_grey)
-    # half_show("original", frame)
+    half_show("original", frame)
     
     blue_lower = np.array([0,150,50])
     blue_upper = np.array([20,255,150])
     blue_mask = cv2.inRange(hsv,blue_lower, blue_upper)
     blue_filtered = cv2.bitwise_and(frame,frame,mask=blue_mask)
     pre_circle = np.asarray(255 * ((blue_grey / 255.0) * (blue_mask / 255.0)), dtype=np.uint8)
-    # half_show("bluemask", blue_mask)
-    # half_show("pre_circle", pre_circle)
-    circles = cv2.HoughCircles(pre_circle,cv2.cv.CV_HOUGH_GRADIENT,1,3,param1=10,param2=5,minRadius=5,maxRadius=8)
+    #half_show("bluemask", blue_mask)
+    #half_show("pre_circle", pre_circle)
+    circles = cv2.HoughCircles(pre_circle,cv2.cv.CV_HOUGH_GRADIENT,1,3,param1=10,param2=5,minRadius=5,maxRadius=10)
     if circles is None:
-        # half_show("preview", frame)
-        # cv2.waitKey(0)
+        #half_show("preview", frame)
+        #cv2.waitKey(0)
         return 0
 
     for i in circles[0,:]:
@@ -133,8 +135,8 @@ def calculate_cell_count(frame):
 
     numCells = len(circles[0])
 
-    # half_show("preview", frame)
-    # cv2.waitKey(0)
+    half_show("preview", frame)
+    cv2.waitKey(0)
     return numCells
 
     # ##VIDEO PROCESSING
@@ -195,18 +197,15 @@ def process_video(video):
     times = np.array(times)
     mask = np.arange(0, len(netareas))[10:]
 
-    # plt.plot(times[mask], netareas[mask])
-    # plt.figure()
-    # plt.plot(times[mask], redareas[mask])
-    # plt.figure()
+    plt.plot(times[mask], netareas[mask])
+    plt.figure()
+    plt.plot(times[mask], redareas[mask])
+    plt.figure()
     plt.plot(times[mask], cellcounts[mask])
     plt.figure()
     plt.plot(times[mask], cellareacounts[mask])
     plt.show()
 
-    cellareacount
-
-    import pandas as pd
 
     frame = pd.DataFrame()
     frame['times'] = times
@@ -217,7 +216,6 @@ def process_video(video):
     frame['normalized_net'] = netareas / cellcounts
     frame['normalized_ros'] = redareas / cellcounts
 
-    import os
     base_name = os.path.basename(video)
     frame.to_csv(base_name+'_export.csv', indexGG=False)
 
