@@ -32,9 +32,8 @@ image_num = 0
 history = 10
 frames = []
 
-# video = '/media/julianne/Julianne/Imaging/BATTLEDOME AVI/20150804  Neuts DPI NEi BattleDome + CellROX021.avi'
-# video = '/media/julianne/Julianne/Imaging/BATTLEDOME AVI/20150804  Neuts DPI NEi BattleDome + CellROX005.avi'
-video = sys.argv[1]
+video = os.path.realpath("LeoVideo/20130919C5a10nM+LTB410nMxy41.avi")
+#video = sys.argv[1]
 # videos = [os.path.join(video, s) for s in os.listdir(video)]
 # videos = sorted(videos)
 # videos = videos[0:24]
@@ -102,11 +101,15 @@ def heatmap(circles,image):
     hsv = cv2.cvtColor(image,cv2.COLOR_RGB2HSV)
     r = 15
     for point in circles:
-        tl = [point[0]-r,point[1]-r]
-        br = [point[0]+r,point[1]+r]
-        print "point value is: %s" %(point)
-        for i in range(tl[0],br[0]):
-            for j in range(tl[1],br[1]):
+        tl = [point[0]-r,point[1]-r] #make sure on min or max
+        br = [point[0]+r,point[1]+r] #make sure on min or max
+        #print "point value is: %s" %(point)
+	if br[0] > 550:
+	    br[0] = 550
+	elif br[1] > 550:     
+	    br[1] = 550
+	for i in range(int(tl[0]),int(br[0])):
+            for j in range(int(tl[1]),int(br[1])):
                 value = hsv[i][j]
                 if value[0] == 0 and value[1] == 0 and value[2] == 0:
                     hsv[i][j] = [51,235,26]
@@ -158,9 +161,6 @@ def process_video(video):
     cv2.waitKey(1000)
 
     # track, traj = tracking(video)
-    # hm = heatmap(circs, blank)
-    # cv2.imshow('heatmap', hm)
-    # cv2.waitKey(10)
     times = np.linspace(0, 6, len(video))
     cellcounts = np.array(cellcounts)
     times = np.array(times)
