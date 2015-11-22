@@ -95,7 +95,7 @@ def tracking(video):
     #     print i
     cells = []
     track = []
-    f = tp.batch(framesmask[20:50], 21, minmass=2000, invert=False)
+    f = tp.batch(framesmask[20:50], 11, minmass=4000, invert=False, noise_size=3)
     # f = tp.locate(framesmask[62], 11, invert=False, minmass = 4000, noise_size=3)
     # plt.figure(1)
     # tp.annotate(f, framesmask[62])
