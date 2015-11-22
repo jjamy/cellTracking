@@ -12,6 +12,7 @@ import pandas as pd
 from pandas import DataFrame, Series  # for convenience
 import pims
 import trackpy as tp
+import trackpy.predict
 import cPickle
 import ipdb
 import sys
@@ -31,7 +32,11 @@ history = 10
 frames = []
 
 
-video = os.path.realpath("/media/julianne/Passport/LEO/114/FI32a.avi")
+#video = os.path.realpath("/media/julianne/Passport/LEO/114/FI32a.avi")
+#video = os.path.realpath("/media/luke/Passport/LEO/114/FI32a.avi")
+video = os.path.realpath("/home/luke/Downloads/1a.avi")
+prefix = "/media/luke/Passport/LEO/114"
+videos = [os.path.join(prefix, p) for p in os.listdir(prefix)]
 # video = sys.argv[1]
 # videos = [os.path.join(video, s) for s in os.listdir(video)]
 # videos = sorted(videos)
@@ -85,33 +90,55 @@ def tracking(video):
     fgbg = cv2.BackgroundSubtractorMOG()
     framesmask = []
     framecount = 0
+    blurredframes = []
+    pimsframes = [frame[:,400:] for frame in pimsframes]
     for frame in pimsframes:
+        # frame = cv2.GaussianBlur(frame,(9,9),0)
+        # frame = cv2.medianBlur(frame, 7)
+        # if align remove
+        frame = cv2.GaussianBlur(frame,(11,11),7)
+        frame = cv2.medianBlur(frame, 3)
         fgmask = fgbg.apply(frame, learningRate=1.0/history)
         framesmask.append(fgmask)
         framecount += 1
+        blurredframes.append(frame)
+
+    background_sub = [m * frame for m,frame in zip(framesmask, pimsframes)]
+    if False:
+        for i in range(100):
+            cv2.imshow("asdf", background_sub[i])
+            cv2.imshow("mask", framesmask[i])
+            cv2.imshow("orig", pimsframes[i])
+            cv2.imshow("blur", blurredframes[i])
+            cv2.waitKey(0)
     # for i, f in enumerate(framesmask):
     #     half_show("asdf", f)
     #     cv2.waitKey(0)
     #     print i
     cells = []
     track = []
-    f = tp.batch(framesmask[20:50], 11, minmass=4000, invert=False, noise_size=3)
-    # f = tp.locate(framesmask[62], 11, invert=False, minmass = 4000, noise_size=3)
-    # plt.figure(1)
-    # tp.annotate(f, framesmask[62])
-    # plt.show()
+
+    to_track = background_sub
+    minmass = 3000
+
+    f = tp.batch(to_track[:], 11, minmass=minmass, invert=False, noise_size=3)
+    # for j in range(20,100):
+    #     f = tp.locate(to_track[j], 11, invert=False, minmass = minmass, noise_size=3)
+    #     plt.figure(1)
+    #     tp.annotate(f, to_track[j])
+    #     plt.show()
     # ipdb.set_trace()
     print "linking"
-    t = tp.link_df(f, 20, memory=3)
+    try:
+        t = tp.link_df(f, 100, memory=3)
+    except Exception:
+        print "FAILED on", video
+        return None
     print "done"
-    plt.figure(2)
-    tp.plot_traj(t)
-    plt.show()
-
-    cells += f
-    track += t
-    print t.head()
-    return t.head()
+    # plt.figure(2)
+    # tp.plot_traj(t)
+    # plt.show()
+    return t
 
 def heatmap(circles,image):
     # print "running heatmap"
@@ -163,6 +190,7 @@ def heatmap(circles,image):
 
 
 def process_video(video):
+    print "working on video:", video
     cap = cv2.VideoCapture(video)
     cap.open(video)
     cur_frame_idx = 0
@@ -203,13 +231,20 @@ def process_video(video):
             # mask_vid += mask_rbg
 
         cPickle.dump(circs, open("circs.pkl", "w"))
+
     circs = cPickle.load(open("circs.pkl"))
 
     # hm = heatmap(circs, blank)
     # cv2.imshow('heatmap', hm)
     # cv2.waitKey(1000)
 
-    track, traj = tracking(video)
+    df = tracking(video)
+    if df is None:
+        print "FAILED ON", video
+        return
+    output = "out/"
+    name = video.split("/")[-1].split(".")[-2]
+    df.to_csv("output/%s.csv"%name)
     # times = np.linspace(0, 6, len(video))
     # cellcounts = np.array(cellcounts)
     # times = np.array(times)
@@ -230,7 +265,12 @@ def process_video(video):
     # frame.to_csv(base_name+'_export.csv', indexGG=False)
 
 # for v in tqdm(videos):
-process_video(video)
+import multiprocessing
+pool = multiprocessing.Pool(8)
+import numpy as np
+np.random.shuffle(videos)
+pool.map(process_video, videos)
+#process_video(video)
 
 # blank = np.zeros((550, 1200, 3), np.uint8)
 # hm = heatmap([[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300]],blank)
