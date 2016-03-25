@@ -22,6 +22,22 @@ from tqdm import tqdm, trange
 
 print "OpenCV Version : %s " % cv2.__version__
 
+import signal
+from contextlib import contextmanager
+
+class TimeoutException(Exception): pass
+
+@contextmanager
+def time_limit(seconds):
+    def signal_handler(signum, frame):
+        raise TimeoutException, "Timed out!"
+    signal.signal(signal.SIGALRM, signal_handler)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+
 ### ASSIGN VARIABLES
 cellThresh = 0
 netThresh = 0
@@ -34,8 +50,10 @@ frames = []
 
 #video = os.path.realpath("/media/julianne/Passport/LEO/114/FI32a.avi")
 #video = os.path.realpath("/media/luke/Passport/LEO/114/FI32a.avi")
-video = os.path.realpath("/home/luke/Downloads/1a.avi")
-prefix = "/media/luke/Passport/LEO/114"
+
+#video = os.path.realpath("/home/luke/Downloads/1a.avi")
+#prefix = "/media/luke/Passport/LEO/114"
+prefix = sys.argv[1]
 videos = [os.path.join(prefix, p) for p in os.listdir(prefix)]
 # video = sys.argv[1]
 # videos = [os.path.join(video, s) for s in os.listdir(video)]
@@ -54,11 +72,15 @@ def calculate_cell_count(frame):
     # print "calculating"
     # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2HSV)
     blur = cv2.medianBlur(frame,7)
-    blurdst = cv2.fastNlMeansDenoising(blur,10,10,7,21)
-    # half_show('dst', dst)
-    # half_show('blur', blur)
-    # half_show('dstblur', dstblur)
+    # blurdst = cv2.fastNlMeansDenoising(blur,10,10,7,21)
+    blurdst = cv2.fastNlMeansDenoising(blur,h=10,templateWindowSize=5,searchWindowSize=11)
+
+
+    # blurdst2 = cv2.fastNlMeansDenoising(blur,h=10,templateWindowSize=7,searchWindowSize=21)
     # half_show('blurdst', blurdst)
+    # half_show('blurdst2', blurdst2)
+    # half_show('blur', blur)
+
     # cv2.waitKey(0)
     grey = cv2.cvtColor(blurdst, cv2.COLOR_RGB2GRAY);
     circles = cv2.HoughCircles(grey,cv2.cv.CV_HOUGH_GRADIENT,1,20,param1=15,param2=5,minRadius=2,maxRadius=10)
@@ -91,6 +113,10 @@ def tracking(video):
     framesmask = []
     framecount = 0
     blurredframes = []
+    # HACK to flip if has space in name. #TODO get all videos correctly alligned...
+    if " " in video:
+        pimsframes = [p[:, ::-1] for p in pimsframes]
+
     pimsframes = [frame[:,400:] for frame in pimsframes]
     for frame in pimsframes:
         # frame = cv2.GaussianBlur(frame,(9,9),0)
@@ -130,7 +156,9 @@ def tracking(video):
     # ipdb.set_trace()
     print "linking"
     try:
-        t = tp.link_df(f, 100, memory=3)
+        # t = tp.link_df(f, 100, memory=3)
+        t = tp.link_df(f, 100, memory=1)
+
     except Exception:
         print "FAILED on", video
         return None
@@ -204,35 +232,35 @@ def process_video(video):
     blank = np.zeros((height, width, 3), np.uint8) #change for size of video
     fgbg = cv2.BackgroundSubtractorMOG()
 
-    if False:
-        rets, frames = [], []
-        # mask_vid = []
-        while(cap.isOpened()):
-            # Capture frame-by-frame
-            print "running while loop"
-            ret, frame = cap.read()
-            if frame is None:
-                break
-            rets.append(ret)
-            frames.append(frame)
+    # if True:
+    #     rets, frames = [], []
+    #     # mask_vid = []
+    #     while(cap.isOpened()):
+    #         # Capture frame-by-frame
+    #         ret, frame = cap.read()
+    #         if frame is None:
+    #             break
+    #         rets.append(ret)
+    #         frames.append(frame)
+    #     # XXXXX REMOVE ME
+    #     frames = frames[50:70]
+    #     for ret, frame in tqdm(list(zip(rets, frames))):
+    #         fgmask = fgbg.apply(frame, learningRate=1.0/history)
+    #         mask_rbg = cv2.cvtColor(fgmask,cv2.COLOR_GRAY2BGR)
+    #         # half_show('frame', frame)
+    #         # half_show('background subtractor',fgmask)
+    #         # cv2.waitKey(100)
+    #         cellcount,circ = calculate_cell_count(mask_rbg)
+    #         if circ != None:
+    #             for value in circ:
+    #                 circs.append(value)
+    #         cellcounts.append(cellcount)
 
-        for ret, frame in tqdm(list(zip(rets, frames))):
-            fgmask = fgbg.apply(frame, learningRate=1.0/history)
-            mask_rbg = cv2.cvtColor(fgmask,cv2.COLOR_GRAY2BGR)
-            # half_show('frame', frame)
-            # half_show('background subtractor',fgmask)
-            # cv2.waitKey(100)
-            cellcount,circ = calculate_cell_count(mask_rbg)
-            if circ != None:
-                for value in circ:
-                    circs.append(value)
-            cellcounts.append(cellcount)
+    #         # mask_vid += mask_rbg
 
-            # mask_vid += mask_rbg
+    #     cPickle.dump(circs, open("circs.pkl", "w"))
 
-        cPickle.dump(circs, open("circs.pkl", "w"))
-
-    circs = cPickle.load(open("circs.pkl"))
+    # circs = cPickle.load(open("circs.pkl"))
 
     # hm = heatmap(circs, blank)
     # cv2.imshow('heatmap', hm)
@@ -269,6 +297,24 @@ import multiprocessing
 pool = multiprocessing.Pool(8)
 import numpy as np
 np.random.shuffle(videos)
+videos = [v for v in videos if ".avi" in v]
+
+path = lambda video: "output/"+video.split("/")[-1].split(".")[-2] + ".csv"
+
+videos = [v for v in videos if not os.path.exists(path(v))]
+print len(videos)
+print videos
+
+#for v in tqdm(videos):
+#process_video(v)
+
+    # try:
+    #     with time_limit(10):
+    #         process_video(v)
+    # except TimeoutException, msg:
+    #     print "Timed out! on", v
+
+# map(process_video, videos)
 pool.map(process_video, videos)
 #process_video(video)
 

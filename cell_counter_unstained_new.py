@@ -49,9 +49,7 @@ history = 10
 frames = []
 
 
-video = os.path.realpath("LeoVideo/20130919C5a10nM+LTB410nMxy41.avi")
-#video = sys.argv[1]
-# videos = [os.path.join(video, s) for s in os.listdir(video)]
+#video = os.path.realpath("LeoVideo/20130919C5a10nM+LTB410nMxy41.avi")
 # videos = sorted(videos)
 # videos = videos[0:24]
 
@@ -158,7 +156,7 @@ def heatmap(circles,image):
     plt.colorbar()
     plt.show()
 
-    return rgb
+    return count
 
 
 def process_video(video):
@@ -175,7 +173,7 @@ def process_video(video):
     blank = np.zeros((height, width, 3), np.uint8) #change for size of video
     fgbg = cv2.BackgroundSubtractorMOG()
 
-    if False:
+    if True:
         rets, frames = [], []
         while(cap.isOpened()):
             # Capture frame-by-frame
@@ -225,8 +223,10 @@ def process_video(video):
     base_name = os.path.basename(video)
     frame.to_csv(base_name+'_export.csv', indexGG=False)
 
-# for v in tqdm(video):
-process_video(video)
+video = sys.argv[1]
+videos = [os.path.join(video, s) for s in os.listdir(video)]
+for v in tqdm(video):
+    process_video(video)
 
 # blank = np.zeros((550, 1200, 3), np.uint8)
 # hm = heatmap([[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300],[250,250],[300,300]],blank)
